@@ -191,7 +191,7 @@ syscall(
 logging.info(f"Optimizing the tree from usher {tree_unoptimized}")
 tree_optimized = "04.optimized.pb"
 syscall(
-    f"matOptimize -T {options.cpus} -r 8 -M 2 -i {tree_unoptimized} -o {tree_optimized} &> {tree_optimized}.log"
+    f"matOptimize --vcf {vcf} -T {options.cpus} -r 8 -M 2 -i {tree_unoptimized} -o {tree_optimized} &> {tree_optimized}.log"
 )
 logging.info(f"Made optimized tree {tree_optimized}")
 
