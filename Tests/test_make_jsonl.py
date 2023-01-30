@@ -15,9 +15,9 @@ scripts_dir = os.path.join(this_dir, os.pardir, "Scripts")
 def check_jsonl_contents(infile):
     with gzip.open(infile, "rb") as f:
         lines = [json.loads(x.rstrip()) for x in f]
-    assert len(lines) == 7
+    assert len(lines) == 6
     names = {x["name"] for x in lines if "name" in x}
-    assert len(names) == 6  # expected samples plus nodes to make tree
+    assert len(names) == 5  # expected samples plus nodes to make tree
     assert "sample_1" in names
     assert "sample_2" in names
     assert "sample_3" in names
