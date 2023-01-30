@@ -27,5 +27,5 @@ cd usher
 sed -i 's/sudo -E //' install/installUbuntu.sh
 # use 1 thread to compile. On my 8gb build machine, using all 4 cores dies
 # because it uses all the ram
-sed -i 's/make -j$(nproc)/make/' install/installUbuntu.sh
+sed -i 's/make -j$(nproc)/make -j2/' install/installUbuntu.sh
 ./install/installUbuntu.sh
