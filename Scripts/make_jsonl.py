@@ -10,7 +10,7 @@ import subprocess
 import pyfastaq
 
 
-def syscall(command, cwd=None, quiet=False):
+def syscall(command, cwd=None, quiet=False, log=None):
     if not quiet:
         logging.info(f"Run: {command}")
     p = subprocess.run(
@@ -21,8 +21,11 @@ def syscall(command, cwd=None, quiet=False):
         universal_newlines=True,
         cwd=cwd,
     )
+    if log is not None:
+        with open(log, "w") as f:
+            print(p.stdout, file=f)
     if p.returncode != 0:
-        raise Exception(f"Command failed (exit code {p.returncode}): {command}")
+        raise Exception(f"Command failed (exit code {p.returncode}): {command}\n\n{p.stdout}\n")
     return p
 
 
@@ -72,6 +75,12 @@ parser.add_argument(
     help="Genbank file of reference [%(default)s]",
     default=REF_GB,
     metavar="FILENAME",
+)
+parser.add_argument(
+    "--matopt_opts",
+    help="matOptimize options (don't use -T here because that's detemined by the --cpus option to this script). [%(default)s]",
+    metavar="STR",
+    default="-m 0.000000001 -r 8",
 )
 parser.add_argument(
     "--metadata_tsv",
@@ -184,14 +193,16 @@ with open(empty_tree, "w") as f:
     print("()", file=f)
 tree_unoptimized = "03.usher.pb"
 syscall(
-    f"usher --sort-before-placement-3 --vcf {vcf} --tree {empty_tree} -T {options.cpus} --save-mutation-annotated-tree {tree_unoptimized} &> {tree_unoptimized}.log"
+    f"usher-sampled --sort-before-placement-3 --vcf {vcf} --tree {empty_tree} -T {options.cpus} --save-mutation-annotated-tree {tree_unoptimized}",
+    log=f"{tree_unoptimized}.log",
 )
 
 
 logging.info(f"Optimizing the tree from usher {tree_unoptimized}")
 tree_optimized = "04.optimized.pb"
 syscall(
-    f"matOptimize --vcf {vcf} -T {options.cpus} -r 8 -M 2 -i {tree_unoptimized} -o {tree_optimized} &> {tree_optimized}.log"
+    f"matOptimize {options.matopt_opts} --vcf {vcf} -T {options.cpus} -i {tree_unoptimized} -o {tree_optimized}",
+    log=f"{tree_optimized}.log"
 )
 logging.info(f"Made optimized tree {tree_optimized}")
 
