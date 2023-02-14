@@ -13,7 +13,7 @@ singularity build ushonium.img Singularity.def
 
 ## Usage
 
-The container has a script called `make_jsonl.py`, which makes a taxonium
+The container has a script called `ushonium`, which makes a taxonium
 `jsonl.gz` file from fasta consensus sequences.
 
 It uses mafft to align all sequences to the Covid reference (ignoring
@@ -29,7 +29,7 @@ with no headings and two columns:
 Assuming that TSV file is called `samples.tsv`, the usage is:
 
 ```
-make_jsonl.py samples.tsv outdir
+ushonium samples.tsv outdir
 ```
 
 where the output directory `outdir` will be created. The final taxonium file
@@ -68,10 +68,10 @@ If the metadata file is called `metadata.tsv`, and we want columns
 
 ### Reference genome
 
-The script `make_jsonl.py`  was set up for covid,
+The script `ushonium`  was set up for covid,
 using the recommended genbank reference from taxoniumtools.
 This genbank file is included in the container, so there is
-no need to specify the reference genome when running `make_jsonl.py` unless
+no need to specify the reference genome when running `ushonium` unless
 you want to use a different reference. The option to change it to `my_ref.gb` is
 `--ref_gb my_ref.gb`.
 
