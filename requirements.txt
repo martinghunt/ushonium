@@ -1,3 +1,2 @@
 pyfastaq
-pytest
 taxoniumtools
