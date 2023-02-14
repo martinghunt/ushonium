@@ -20,5 +20,9 @@ export LANG=C.UTF-8
     /ushonium/install_dependencies.sh /bioinf-tools
     cd /ushonium
     python3 -m pip install -r requirements.txt
-    pytest Tests/test_make_jsonl.py
+    python3 -m pip install pytest
+    pytest
+    python3 -m pip install .
 
+%runscript
+    ushonium "$@"
