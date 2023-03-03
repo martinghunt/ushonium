@@ -59,6 +59,11 @@ def main(args=None):
         default="as_ref",
     )
     parser.add_argument(
+        "--ref_start_end",
+        help="Start and end coord of the ref to use, eg --ref_start_end 100,28000 would trim all MSAs to reference coords 100-28000 inclusive (1-based coords)",
+        metavar="INT,INT",
+    )
+    parser.add_argument(
         "samples_tsv",
         help="TSV file of sample names (column 1) and FASTA filenames (column 2). No header line in file",
     )

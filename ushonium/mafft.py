@@ -30,9 +30,51 @@ def fix_indels(ref_seq, aln_seq, method):
     return "".join(aln_seq)
 
 
-def run_mafft_one_seq(name, to_align, ref_fa, ref_name, quiet, indel_method):
+def force_ref_at_ends(ref_seq, aln_seq, ref_start, ref_end):
+    new_aln_seq = []
+    new_ref_seq = []
+    ref_pos = -1
+    for aln_start, c in enumerate(ref_seq):
+        if c != "-":
+            ref_pos += 1
+        if ref_pos == ref_start:
+            break
+        if c != "-":
+            new_aln_seq.append(c)
+            new_ref_seq.append(c)
+
+    while aln_start < len(ref_seq) and ref_seq[aln_start] == "-":
+        aln_start += 1
+
+    ref_pos = len([x for x in ref_seq if x != "-"])
+    aln_end = len(ref_seq)
+    for c in reversed(ref_seq):
+        aln_end -= 1
+        if c != "-":
+            ref_pos -= 1
+        if ref_pos == ref_end:
+            break
+
+    while aln_end > 0 and ref_seq[aln_end] == "-":
+        aln_end -= 1
+
+    new_end = ref_seq[aln_end + 1 :].replace("-", "")
+    new_ref_seq.extend([ref_seq[aln_start : aln_end + 1], new_end])
+    new_aln_seq.extend([aln_seq[aln_start : aln_end + 1], new_end])
+    return "".join(new_ref_seq), "".join(new_aln_seq)
+
+
+def run_mafft_one_seq(
+    name, to_align, ref_fa, ref_name, quiet, indel_method, ref_start, ref_end
+):
+    assert ref_start == None == ref_end or None not in [ref_start, ref_end]
     assert indel_method in {"nothing", "as_ref", "N"}
     command = f"mafft --quiet --keeplength --add {to_align} {ref_fa}"
     process = utils.syscall(command, quiet=quiet)
     ref_seq, aln_seq = mafft_stdout_to_seqs(process.stdout, ref_name)
-    return name, fix_indels(ref_seq, aln_seq, indel_method)
+    if ref_start is not None:
+        assert 0 <= ref_start < ref_end
+        ref_seq, aln_seq = force_ref_at_ends(ref_seq, aln_seq, ref_start, ref_end)
+    if indel_method != "nothing":
+        aln_seq = fix_indels(ref_seq, aln_seq, indel_method)
+    return name, aln_seq

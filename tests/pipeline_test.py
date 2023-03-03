@@ -32,6 +32,7 @@ def test_pipeline():
     options.indel_method = "nothing"
     utils.syscall(f"rm -rf {options.outdir}")
     options.samples_tsv = "tmp.test_pipeline.samples.tsv"
+    options.ref_start_end = None
     with open(options.samples_tsv, "w") as f:
         for i in range(1, 4):
             print(

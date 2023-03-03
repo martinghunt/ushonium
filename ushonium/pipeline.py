@@ -24,6 +24,19 @@ def load_samples_tsv(infile):
 
 
 def run(options):
+    if options.ref_start_end is None:
+        ref_start = None
+        ref_end = None
+    else:
+        try:
+            ref_start, ref_end = options.ref_start_end.split(",")
+            ref_start = int(ref_start) - 1
+            ref_end = int(ref_end) - 1
+        except:
+            raise Exception(
+                f"Error parsing ref_start_end option: '{options.ref_start_end}'. Must be of the form START,END"
+            )
+
     logging.info(
         f"Load input TSV file of sample names and FASTA files {options.samples_tsv}"
     )
@@ -67,6 +80,8 @@ def run(options):
                         ref_seq.id,
                         False,
                         options.indel_method,
+                        ref_start,
+                        ref_end,
                     )
                 )
         else:
@@ -85,6 +100,8 @@ def run(options):
                         repeat(ref_seq.id),
                         repeat(True),
                         repeat(options.indel_method),
+                        repeat(ref_start),
+                        repeat(ref_end),
                     ),
                 )
 
