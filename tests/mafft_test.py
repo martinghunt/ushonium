@@ -1,3 +1,4 @@
+import gzip
 import os
 import pytest
 
@@ -25,7 +26,7 @@ def test_data():
 
     data = {
         "ref_fa": os.path.join(outdir, "ref.fa"),
-        "to_align_fa": os.path.join(outdir, "to_align.fa"),
+        "to_align_fa": os.path.join(outdir, "to_align.fa.gz"),
         "expect_ignore_indel": expect_indel.lower(),
         "expect_indel_ref": expect_indel_ref.lower(),
         "expect_indel_N": expect_indel_N.lower(),
@@ -33,7 +34,7 @@ def test_data():
 
     with open(data["ref_fa"], "w") as f:
         print(">ref", ref, sep="\n", file=f)
-    with open(data["to_align_fa"], "w") as f:
+    with gzip.open(data["to_align_fa"], "wt") as f:
         print(">to_align", aln, sep="\n", file=f)
 
     yield data

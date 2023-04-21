@@ -1,3 +1,5 @@
+import os
+
 from ushonium import utils
 
 
@@ -69,8 +71,18 @@ def run_mafft_one_seq(
 ):
     assert ref_start == None == ref_end or None not in [ref_start, ref_end]
     assert indel_method in {"nothing", "as_ref", "N"}
+    if to_align.endswith(".gz"):
+        to_align_original = to_align
+        to_align = f"tmp.{name}.fa"
+        assert not os.path.exists(to_align)
+        utils.syscall(f"gunzip -c {to_align_original} > {to_align}", quiet=quiet)
+    else:
+        to_align_original = None
+
     command = f"mafft --quiet --keeplength --add {to_align} {ref_fa}"
     process = utils.syscall(command, quiet=quiet)
+    if to_align_original is not None:
+        os.unlink(to_align)
     ref_seq, aln_seq = mafft_stdout_to_seqs(process.stdout, ref_name)
     if ref_start is not None:
         assert 0 <= ref_start < ref_end
