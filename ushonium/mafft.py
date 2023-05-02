@@ -66,6 +66,20 @@ def force_ref_at_ends(ref_seq, aln_seq, ref_start, ref_end):
     return "".join(new_ref_seq), "".join(new_aln_seq)
 
 
+def replace_start_end_indels_with_N(seq):
+    new_seq = list(seq)
+    chars = {"n", "N", "-"}
+    i = 0
+    while i < len(new_seq) and new_seq[i] in chars:
+        new_seq[i] = "N"
+        i += 1
+    i = len(new_seq) - 1
+    while i >= 0 and new_seq[i] in chars:
+        new_seq[i] = "N"
+        i =- 1
+    return "".join(new_seq)
+
+
 def run_mafft_one_seq(
     name, to_align, ref_fa, ref_name, quiet, indel_method, ref_start, ref_end
 ):
@@ -84,9 +98,11 @@ def run_mafft_one_seq(
     if to_align_original is not None:
         os.unlink(to_align)
     ref_seq, aln_seq = mafft_stdout_to_seqs(process.stdout, ref_name)
+    aln_seq = replace_start_end_indels_with_N(aln_seq)
     if ref_start is not None:
         assert 0 <= ref_start < ref_end
         ref_seq, aln_seq = force_ref_at_ends(ref_seq, aln_seq, ref_start, ref_end)
+
     if indel_method != "nothing":
         aln_seq = fix_indels(ref_seq, aln_seq, indel_method)
     return name, aln_seq
