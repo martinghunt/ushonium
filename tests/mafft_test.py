@@ -146,12 +146,12 @@ def test_force_ref_at_ends():
     assert got_aln == "AdefA"
 
 
-def replace_start_end_indels_with_N():
+def test_replace_start_end_indels_with_N():
     f = mafft.replace_start_end_indels_with_N
     assert f("A") == "A"
     assert f("-A") == "NA"
     assert f("A-") == "AN"
     assert f("-A-") == "NAN"
     assert f("n-A-n")== "NNANN"
-    assert f("-N-AGT--GT-N-N-") == "NNNAGT--GT-NNNNN"
+    assert f("-N-AGT--GT-N-N-") == "NNNAGT--GTNNNNN"
 

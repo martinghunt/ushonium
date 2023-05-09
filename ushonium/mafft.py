@@ -76,7 +76,7 @@ def replace_start_end_indels_with_N(seq):
     i = len(new_seq) - 1
     while i >= 0 and new_seq[i] in chars:
         new_seq[i] = "N"
-        i =- 1
+        i -= 1
     return "".join(new_seq)
 
 
