@@ -83,6 +83,10 @@ def main(args=None):
             raise Exception("If using --metadata_tsv, must also use --metacols")
         options.metadata_tsv = os.path.abspath(options.metadata_tsv)
 
+    logging.basicConfig(
+        format="[%(asctime)s ushonium] %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S%z",
+    )
     log = logging.getLogger()
     log.setLevel(logging.INFO)
     pipeline.run(options)
