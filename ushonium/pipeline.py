@@ -228,13 +228,13 @@ class Pipeline:
         # ----------------------- Make VCF from each MSA ----------------------
         vcf_dir = "02.vcfs"
         vcfs_done = "02.vcfs.done"
+        vcfs = [
+            os.path.abspath(os.path.join(vcf_dir, f"{i}.vcf"))
+            for i in range(len(fasta_input_files))
+        ]
         if not os.path.exists(vcfs_done):
             utils.syscall(f"rm -rf {vcf_dir}")
             os.mkdir(vcf_dir)
-            vcfs = [
-                os.path.abspath(os.path.join(vcf_dir, f"{i}.vcf"))
-                for i in range(len(fasta_input_files))
-            ]
             commands = [
                 f"faToVcf -includeNoAltN {msa_fastas[i]} {vcfs[i]}"
                 for i in range(len(fasta_input_files))
@@ -291,7 +291,8 @@ class Pipeline:
         self.run_usher_to_taxonium()
 
     def run(self):
-        os.mkdir(self.outdir)
+        if not os.path.exists(self.outdir):
+            os.mkdir(self.outdir)
         original_dir = os.getcwd()
 
         if self.samples_tsv is not None:
