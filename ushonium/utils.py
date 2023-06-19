@@ -1,4 +1,5 @@
 import logging
+import os
 import subprocess
 import pyfastaq
 
@@ -29,3 +30,10 @@ def load_single_seq_fasta(filename):
     pyfastaq.tasks.file_to_dict(filename, seqs)
     assert len(seqs) == 1
     return list(seqs.values())[0]
+
+
+def to_abs_path(filename):
+    if filename is None:
+        return None
+    else:
+        return os.path.abspath(filename)

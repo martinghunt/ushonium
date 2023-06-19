@@ -27,6 +27,7 @@ def test_data():
     data = {
         "ref_fa": os.path.join(outdir, "ref.fa"),
         "to_align_fa": os.path.join(outdir, "to_align.fa.gz"),
+        "to_align_multi_fa": os.path.join(outdir, "to_align_multi.fa"),
         "expect_ignore_indel": expect_indel.lower(),
         "expect_indel_ref": expect_indel_ref.lower(),
         "expect_indel_N": expect_indel_N.lower(),
@@ -36,6 +37,9 @@ def test_data():
         print(">ref", ref, sep="\n", file=f)
     with gzip.open(data["to_align_fa"], "wt") as f:
         print(">to_align", aln, sep="\n", file=f)
+    with open(data["to_align_multi_fa"], "w") as f:
+        for i in range(10):
+            print(f">to_align.{i}", aln, sep="\n", file=f)
 
     yield data
     utils.syscall(f"rm -rf {outdir}")
@@ -52,7 +56,21 @@ def test_mafft_stdout_to_seqs():
     )
     got_ref, got_aln = mafft.mafft_stdout_to_seqs(mafft_stdout, "ref")
     assert got_ref == "cagctaac"
-    assert got_aln == "catct--c"
+    assert got_aln == {"aln": "catct--c"}
+
+    mafft_stdout = "\n".join(
+        [
+            ">ref",
+            "cag\nctaac",
+            ">aln1",
+            "cat\nct--c",
+            ">aln2",
+            "cca\nacg\nc",
+        ]
+    )
+    got_ref, got_aln = mafft.mafft_stdout_to_seqs(mafft_stdout, "ref")
+    assert got_ref == "cagctaac"
+    assert got_aln == {"aln1": "catct--c", "aln2": "ccaacgc"}
 
 
 def test_run_mafft_one_seq(test_data):
@@ -152,6 +170,29 @@ def test_replace_start_end_indels_with_N():
     assert f("-A") == "NA"
     assert f("A-") == "AN"
     assert f("-A-") == "NAN"
-    assert f("n-A-n")== "NNANN"
+    assert f("n-A-n") == "NNANN"
     assert f("-N-AGT--GT-N-N-") == "NNNAGT--GTNNNNN"
 
+
+def test_run_mafft_multi_fasta_chunked(test_data):
+    tmp_out = "tmp.run_mafft_multi_fasta_chunked.fa"
+    utils.syscall(f"rm -f {tmp_out}")
+    mafft.run_mafft_multi_fasta_chunked(
+        test_data["to_align_multi_fa"],
+        test_data["ref_fa"],
+        "ref",
+        tmp_out,
+        False,
+        "N",
+        None,
+        None,
+        chunk_size=4,
+    )
+    with open(tmp_out) as f:
+        lines = [l.rstrip() for l in f]
+
+    assert len(lines) == 22  # 2 * 11 sequences
+    got_names = [x for x in lines if x.startswith(">")]
+    expect_names = [">ref"] + [f">to_align.{i}" for i in range(10)]
+    assert got_names == expect_names
+    os.unlink(tmp_out)

@@ -10,7 +10,7 @@ from ushonium import pipeline
 def main(args=None):
     parser = argparse.ArgumentParser(
         description="make taxonium jsonl from fasta files",
-        usage="ushonium [options] <samples_tsv> <outdir>",
+        usage="ushonium [options] <(--samples_tsv foo.tsv)|(--fastas_fofn foo.txt)> <outdir>",
     )
     parser.add_argument(
         "--ref_gb",
@@ -36,7 +36,7 @@ def main(args=None):
     )
     parser.add_argument(
         "--metacol_name",
-        help="Column name in metadata_tsv that has the name of each sample. Every name in --samples_tsv must be in this column. If not provided, then the default for usher_to_taxonium is used, which assumes 'strain'",
+        help="Column name in metadata_tsv that has the name of each sample. Every name in --samples_tsv (if used) must be in this column, othewise the names in the fasta headers in --fastas_fofn must match. If this option is not provided, then the default for usher_to_taxonium is used, which assumes 'strain'",
         metavar="STRING",
     )
     parser.add_argument(
@@ -63,9 +63,16 @@ def main(args=None):
         help="Start and end coord of the ref to use, eg --ref_start_end 100,28000 would trim all MSAs to reference coords 100-28000 inclusive (1-based coords)",
         metavar="INT,INT",
     )
-    parser.add_argument(
-        "samples_tsv",
-        help="TSV file of sample names (column 1) and FASTA filenames (column 2). No header line in file",
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument(
+        "--samples_tsv",
+        help="TSV file of sample names (column 1) and FASTA filenames (column 2). No header line in file. Incompatible with --fastas_fofn",
+        metavar="FILENAME",
+    )
+    input_group.add_argument(
+        "--fastas_fofn",
+        help="File of fasta filenames, one line per file. Incompatible with --samples_tsv",
+        metavar="FILENAME",
     )
     parser.add_argument("outdir", help="Output directory (will be created)")
 

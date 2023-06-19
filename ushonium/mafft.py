@@ -1,4 +1,7 @@
 import os
+import tempfile
+
+import pyfastaq
 
 from ushonium import utils
 
@@ -8,15 +11,20 @@ def mafft_stdout_to_seqs(mafft_stdout, ref_name):
     # reference genome and the aligned genome in there (do not assume what order
     # they are output). We just want to extract the aligned seqs.
     seqs = mafft_stdout.split(">")
-    # seqs looks like: ["", "ref\nACGT...", "to_align\nACGT..."]
-    assert len(seqs) == 3
+    # seqs looks like: ["", "ref\nACGT...", "to_align\nACGT...", ...]
+    assert len(seqs) >= 3
     assert seqs[0] == ""
-    seqs = [x.split("\n", maxsplit=1) for x in seqs[1:]]
-    ref_seq = [x[1] for x in seqs if x[0].startswith(ref_name)]
-    aln_seq = [x[1] for x in seqs if not x[0].startswith(ref_name)]
-    assert len(ref_seq) == 1
-    assert len(aln_seq) == 1
-    return ref_seq[0].replace("\n", ""), aln_seq[0].replace("\n", "")
+    ref_seq = None
+    aln_seqs = {}
+    seqs_to_parse = [x.split("\n", maxsplit=1) for x in seqs[1:]]
+    for (name, seq_str) in seqs_to_parse:
+        if name == ref_name:
+            ref_seq = seq_str.replace("\n", "")
+        else:
+            assert name not in aln_seqs
+            aln_seqs[name] = seq_str.replace("\n", "")
+
+    return ref_seq, aln_seqs
 
 
 def fix_indels(ref_seq, aln_seq, method):
@@ -80,29 +88,95 @@ def replace_start_end_indels_with_N(seq):
     return "".join(new_seq)
 
 
-def run_mafft_one_seq(
-    name, to_align, ref_fa, ref_name, quiet, indel_method, ref_start, ref_end
+def run_mafft_one_fasta(
+    to_align, ref_fa, ref_name, quiet, indel_method, ref_start, ref_end
 ):
     assert ref_start == None == ref_end or None not in [ref_start, ref_end]
     assert indel_method in {"nothing", "as_ref", "N"}
+    # mafft can't take gzip files (and the <(zcat foo.gz) trick doesn't work)
     if to_align.endswith(".gz"):
-        to_align_original = to_align
-        to_align = f"tmp.{name}.fa"
-        assert not os.path.exists(to_align)
-        utils.syscall(f"gunzip -c {to_align_original} > {to_align}", quiet=quiet)
+        with tempfile.TemporaryDirectory() as tempdir:
+            to_align_original = to_align
+            to_align = os.path.join(tempdir, "tmp.fa")
+            utils.syscall(f"gunzip -c {to_align_original} > {to_align}", quiet=quiet)
+            command = f"mafft --quiet --keeplength --add {to_align} {ref_fa}"
+            process = utils.syscall(command, quiet=quiet)
     else:
-        to_align_original = None
+        command = f"mafft --quiet --keeplength --add {to_align} {ref_fa}"
+        process = utils.syscall(command, quiet=quiet)
 
-    command = f"mafft --quiet --keeplength --add {to_align} {ref_fa}"
-    process = utils.syscall(command, quiet=quiet)
-    if to_align_original is not None:
-        os.unlink(to_align)
-    ref_seq, aln_seq = mafft_stdout_to_seqs(process.stdout, ref_name)
-    aln_seq = replace_start_end_indels_with_N(aln_seq)
-    if ref_start is not None:
-        assert 0 <= ref_start < ref_end
-        ref_seq, aln_seq = force_ref_at_ends(ref_seq, aln_seq, ref_start, ref_end)
+    ref_seq, aln_seqs = mafft_stdout_to_seqs(process.stdout, ref_name)
+    for name in aln_seqs:
+        aln_seqs[name] = replace_start_end_indels_with_N(aln_seqs[name])
+        if ref_start is not None:
+            assert 0 <= ref_start < ref_end
+            ref_seq, aln_seqs[name] = force_ref_at_ends(
+                ref_seq, aln_seqs[name], ref_start, ref_end
+            )
 
-    if indel_method != "nothing":
-        aln_seq = fix_indels(ref_seq, aln_seq, indel_method)
-    return name, aln_seq
+        if indel_method != "nothing":
+            aln_seqs[name] = fix_indels(ref_seq, aln_seqs[name], indel_method)
+    return aln_seqs
+
+
+def run_mafft_one_seq(
+    name, to_align, ref_fa, ref_name, quiet, indel_method, ref_start, ref_end
+):
+    aligned_seqs = run_mafft_one_fasta(
+        to_align, ref_fa, ref_name, quiet, indel_method, ref_start, ref_end
+    )
+    assert len(aligned_seqs) == 1
+    return name, list(aligned_seqs.values())[0]
+
+
+def _write_fasta_chunk(outfile, names, seqs):
+    with open(outfile, "w") as f:
+        for name, seq in zip(names, seqs):
+            print(f">{name}", seq, sep="\n", file=f)
+
+
+def run_mafft_multi_fasta_chunked(
+    to_align,
+    ref_fa,
+    ref_name,
+    outfile,
+    quiet,
+    indel_method,
+    ref_start,
+    ref_end,
+    chunk_size=50,
+):
+    chunk_number = 1
+    file_reader = pyfastaq.sequences.file_reader(to_align)
+    names = []
+    seqs = []
+    f_out = pyfastaq.utils.open_file_write(outfile)
+    ref_seq = utils.load_single_seq_fasta(ref_fa)
+    print(f">{ref_name}", ref_seq.seq, sep="\n", file=f_out)
+    for seq in file_reader:
+        names.append(seq.id)
+        seqs.append(seq.seq)
+        if len(names) >= chunk_size:
+            tmp_fa = f"{outfile}.tmp.{chunk_number}.fa"
+            _write_fasta_chunk(tmp_fa, names, seqs)
+            aln_seqs = run_mafft_one_fasta(
+                tmp_fa, ref_fa, ref_name, quiet, indel_method, ref_start, ref_end
+            )
+            for name in names:
+                print(f">{name}", aln_seqs[name], sep="\n", file=f_out)
+            os.unlink(tmp_fa)
+            chunk_number += 1
+            names = []
+            seqs = []
+
+    if len(names) > 0:
+        tmp_fa = f"{outfile}.tmp.{chunk_number}.fa"
+        _write_fasta_chunk(tmp_fa, names, seqs)
+        aln_seqs = run_mafft_one_fasta(
+            tmp_fa, ref_fa, ref_name, quiet, indel_method, ref_start, ref_end
+        )
+        for name in names:
+            print(f">{name}", aln_seqs[name], sep="\n", file=f_out)
+        os.unlink(tmp_fa)
+
+    pyfastaq.utils.close(f_out)
