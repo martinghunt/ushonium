@@ -68,12 +68,12 @@ def run(options):
     # Batching because otherwise would need to store all of the sequences in
     # memory and write at the end. Could be a lot of sequences!
     for i in range(0, len(samples), options.cpus):
-        new_seqs = []
+        aln_seqs = {}
+        names = []
         if options.cpus == 1:
             for sample_name, sample_fa in samples[i : i + options.cpus]:
                 logging.info(f"Running MSA on sample {sample_name}")
-                new_seqs.append(
-                    mafft.run_mafft_one_seq(
+                name, aln_seq = mafft.run_mafft_one_seq(
                         sample_name,
                         sample_fa,
                         ref_fa,
@@ -82,8 +82,9 @@ def run(options):
                         options.indel_method,
                         ref_start,
                         ref_end,
-                    )
                 )
+                names.append(sample_name)
+                aln_seqs[sample_name] = aln_seq
         else:
             names = [x[0] for x in samples[i : i + options.cpus]]
             fastas = [x[1] for x in samples[i : i + options.cpus]]
@@ -91,7 +92,7 @@ def run(options):
                 f"Running batch of MSAs in parallel. Samples {','.join([x[0] for x in samples[i:i+options.cpus]])}"
             )
             with multiprocessing.Pool(processes=options.cpus) as p:
-                new_seqs = p.starmap(
+                results = p.starmap(
                     mafft.run_mafft_one_seq,
                     zip(
                         names,
@@ -104,9 +105,10 @@ def run(options):
                         repeat(ref_end),
                     ),
                 )
+            aln_seqs = {x[0]: x[1] for x in results}
 
-        for name, seq in new_seqs:
-            print(f">{name}", seq, sep="\n", file=f_out_msa)
+        for name in names:
+            print(f">{name}", aln_seqs[name], sep="\n", file=f_out_msa)
 
     f_out_msa.close()
     logging.info("Made MSA of all sequences")
