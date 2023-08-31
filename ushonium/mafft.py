@@ -110,12 +110,14 @@ def run_mafft_one_fasta(
         aln_seqs[name] = replace_start_end_indels_with_N(aln_seqs[name])
         if ref_start is not None:
             assert 0 <= ref_start < ref_end
-            ref_seq, aln_seqs[name] = force_ref_at_ends(
+            ref_seq2, aln_seqs[name] = force_ref_at_ends(
                 ref_seq, aln_seqs[name], ref_start, ref_end
             )
+        else:
+            ref_seq2 = ref_seq
 
         if indel_method != "nothing":
-            aln_seqs[name] = fix_indels(ref_seq, aln_seqs[name], indel_method)
+            aln_seqs[name] = fix_indels(ref_seq2, aln_seqs[name], indel_method)
     return aln_seqs
 
 
