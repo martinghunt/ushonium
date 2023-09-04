@@ -176,7 +176,7 @@ def run_mafft_multi_qry_fasta(
             qry_seqs = []
 
     if len(qry_names) > 0:
-        with multiprocessing.Pool(cpus=cpus) as pool:
+        with multiprocessing.Pool(processes=cpus) as pool:
             results = pool.starmap(
                 run_mafft,
                 zip(
