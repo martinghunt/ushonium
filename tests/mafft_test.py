@@ -25,6 +25,7 @@ def test_data():
     expect_indel_N = start + middle1 + "NNN" + middle2 + "T" + end
 
     data = {
+        "ref_seq": ref,
         "ref_fa": os.path.join(outdir, "ref.fa"),
         "to_align_fa": os.path.join(outdir, "to_align.fa.gz"),
         "to_align_multi_fa": os.path.join(outdir, "to_align_multi.fa"),
@@ -73,45 +74,36 @@ def test_mafft_stdout_to_seqs():
     assert got_aln == {"aln1": "catct--c", "aln2": "ccaacgc"}
 
 
-def test_run_mafft_one_seq(test_data):
+def test_run_mafft_one_qry_fasta(test_data):
     name = "name"
-    got_name, got_seq = mafft.run_mafft_one_seq(
-        name,
+    got_seq = mafft.run_mafft_one_qry_fasta(
         test_data["to_align_fa"],
-        test_data["ref_fa"],
-        "ref",
+        test_data["ref_seq"],
         False,
         "nothing",
         None,
         None,
     )
-    assert got_name == name
     assert got_seq == test_data["expect_ignore_indel"]
 
-    got_name, got_seq = mafft.run_mafft_one_seq(
-        name,
+    got_seq = mafft.run_mafft_one_qry_fasta(
         test_data["to_align_fa"],
-        test_data["ref_fa"],
-        "ref",
+        test_data["ref_seq"],
         False,
         "as_ref",
         None,
         None,
     )
-    assert got_name == name
     assert got_seq == test_data["expect_indel_ref"]
 
-    got_name, got_seq = mafft.run_mafft_one_seq(
-        name,
+    got_seq = mafft.run_mafft_one_qry_fasta(
         test_data["to_align_fa"],
-        test_data["ref_fa"],
-        "ref",
+        test_data["ref_seq"],
         False,
         "N",
         None,
         None,
     )
-    assert got_name == name
     assert got_seq == test_data["expect_indel_N"]
 
 
@@ -174,19 +166,19 @@ def test_replace_start_end_indels_with_N():
     assert f("-N-AGT--GT-N-N-") == "NNNAGT--GTNNNNN"
 
 
-def test_run_mafft_multi_fasta_chunked(test_data):
-    tmp_out = "tmp.run_mafft_multi_fasta_chunked.fa"
+def test_run_mafft_multi_qry_fasta(test_data):
+    tmp_out = "tmp.run_mafft_multi_qry_fasta.fa"
     utils.syscall(f"rm -f {tmp_out}")
-    mafft.run_mafft_multi_fasta_chunked(
+    mafft.run_mafft_multi_qry_fasta(
         test_data["to_align_multi_fa"],
-        test_data["ref_fa"],
         "ref",
+        test_data["ref_seq"],
         tmp_out,
         False,
         "N",
         None,
         None,
-        chunk_size=4,
+        cpus=2,
     )
     with open(tmp_out) as f:
         lines = [l.rstrip() for l in f]

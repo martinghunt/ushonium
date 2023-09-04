@@ -1,5 +1,6 @@
-import os
-import tempfile
+from itertools import repeat
+import multiprocessing
+import subprocess
 
 import pyfastaq
 
@@ -88,97 +89,106 @@ def replace_start_end_indels_with_N(seq):
     return "".join(new_seq)
 
 
-def run_mafft_one_fasta(
-    to_align, ref_fa, ref_name, quiet, indel_method, ref_start, ref_end
-):
+def run_mafft(qry_seq, ref_seq, quiet, indel_method, ref_start, ref_end):
     assert ref_start == None == ref_end or None not in [ref_start, ref_end]
     assert indel_method in {"nothing", "as_ref", "N"}
-    # mafft can't take gzip files (and the <(zcat foo.gz) trick doesn't work)
-    if to_align.endswith(".gz"):
-        with tempfile.TemporaryDirectory() as tempdir:
-            to_align_original = to_align
-            to_align = os.path.join(tempdir, "tmp.fa")
-            utils.syscall(f"gunzip -c {to_align_original} > {to_align}", quiet=quiet)
-            command = f"mafft --quiet --keeplength --add {to_align} {ref_fa}"
-            process = utils.syscall(command, quiet=quiet)
-    else:
-        command = f"mafft --quiet --keeplength --add {to_align} {ref_fa}"
-        process = utils.syscall(command, quiet=quiet)
 
-    ref_seq, aln_seqs = mafft_stdout_to_seqs(process.stdout, ref_name)
-    for name in aln_seqs:
-        aln_seqs[name] = replace_start_end_indels_with_N(aln_seqs[name])
-        if ref_start is not None:
-            assert 0 <= ref_start < ref_end
-            ref_seq2, aln_seqs[name] = force_ref_at_ends(
-                ref_seq, aln_seqs[name], ref_start, ref_end
-            )
-        else:
-            ref_seq2 = ref_seq
-
-        if indel_method != "nothing":
-            aln_seqs[name] = fix_indels(ref_seq2, aln_seqs[name], indel_method)
-    return aln_seqs
-
-
-def run_mafft_one_seq(
-    name, to_align, ref_fa, ref_name, quiet, indel_method, ref_start, ref_end
-):
-    aligned_seqs = run_mafft_one_fasta(
-        to_align, ref_fa, ref_name, quiet, indel_method, ref_start, ref_end
+    script = "\n".join(
+        [
+            f'''ref=">ref\n{ref_seq}"''',
+            f'''qry=">qry\n{qry_seq}"''',
+            """mafft --keeplength --add <(echo "$qry") <(echo "$ref")""",
+        ]
     )
-    assert len(aligned_seqs) == 1
-    return name, list(aligned_seqs.values())[0]
+    p = subprocess.run(
+        ["bash"],
+        input=script,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if p.returncode != 0:
+        raise Exception(
+            f"Error running mafft. Stdout:\n{p.stdout}\n\nStderr:{p.stderr}"
+        )
+
+    ref_seq, aln_seqs = mafft_stdout_to_seqs(p.stdout, "ref")
+    assert len(aln_seqs) == 1
+    aln_seq = replace_start_end_indels_with_N(aln_seqs["qry"])
+
+    if ref_start is not None:
+        assert 0 <= ref_start < ref_end
+        ref_seq, aln_seq = force_ref_at_ends(ref_seq, aln_seq, ref_start, ref_end)
+
+    if indel_method != "nothing":
+        aln_seq = fix_indels(ref_seq, aln_seq, indel_method)
+
+    return aln_seq
 
 
-def _write_fasta_chunk(outfile, names, seqs):
-    with open(outfile, "w") as f:
-        for name, seq in zip(names, seqs):
-            print(f">{name}", seq, sep="\n", file=f)
+def run_mafft_one_qry_fasta(qry_fa, ref_seq, quiet, indel_method, ref_start, ref_end):
+    qry_seq = utils.load_single_seq_fasta(qry_fa)
+    return run_mafft(qry_seq.seq, ref_seq, quiet, indel_method, ref_start, ref_end)
 
 
-def run_mafft_multi_fasta_chunked(
-    to_align,
-    ref_fa,
+def run_mafft_multi_qry_fasta(
+    qry_fa,
     ref_name,
+    ref_seq,
     outfile,
     quiet,
     indel_method,
     ref_start,
     ref_end,
-    chunk_size=50,
+    cpus=1,
 ):
-    chunk_number = 1
-    file_reader = pyfastaq.sequences.file_reader(to_align)
-    names = []
-    seqs = []
     f_out = pyfastaq.utils.open_file_write(outfile)
-    ref_seq = utils.load_single_seq_fasta(ref_fa)
-    print(f">{ref_name}", ref_seq.seq, sep="\n", file=f_out)
+    print(f">{ref_name}", ref_seq, sep="\n", file=f_out)
+    qry_names = []
+    qry_seqs = []
+    file_reader = pyfastaq.sequences.file_reader(qry_fa)
     for seq in file_reader:
-        names.append(seq.id)
-        seqs.append(seq.seq)
-        if len(names) >= chunk_size:
-            tmp_fa = f"{outfile}.tmp.{chunk_number}.fa"
-            _write_fasta_chunk(tmp_fa, names, seqs)
-            aln_seqs = run_mafft_one_fasta(
-                tmp_fa, ref_fa, ref_name, quiet, indel_method, ref_start, ref_end
+        if cpus == 1:
+            aln_seq = run_mafft(
+                seq.seq, ref_seq, quiet, indel_method, ref_start, ref_end
             )
-            for name in names:
-                print(f">{name}", aln_seqs[name], sep="\n", file=f_out)
-            os.unlink(tmp_fa)
-            chunk_number += 1
-            names = []
-            seqs = []
+            print(f">{seq.id}", aln_seq, sep="\n", file=f_out)
+            continue
 
-    if len(names) > 0:
-        tmp_fa = f"{outfile}.tmp.{chunk_number}.fa"
-        _write_fasta_chunk(tmp_fa, names, seqs)
-        aln_seqs = run_mafft_one_fasta(
-            tmp_fa, ref_fa, ref_name, quiet, indel_method, ref_start, ref_end
-        )
-        for name in names:
-            print(f">{name}", aln_seqs[name], sep="\n", file=f_out)
-        os.unlink(tmp_fa)
+        qry_names.append(seq.id)
+        qry_seqs.append(seq.seq)
+        if len(qry_names) >= cpus:
+            with multiprocessing.Pool(processes=cpus) as pool:
+                results = pool.starmap(
+                    run_mafft,
+                    zip(
+                        qry_seqs,
+                        repeat(ref_seq),
+                        repeat(quiet),
+                        repeat(indel_method),
+                        repeat(ref_start),
+                        repeat(ref_end),
+                    ),
+                )
+            for name, aln_seq in zip(qry_names, results):
+                print(f">{name}", aln_seq, sep="\n", file=f_out)
+            qry_names = []
+            qry_seqs = []
+
+    if len(qry_names) > 0:
+        with multiprocessing.Pool(cpus=cpus) as pool:
+            results = pool.starmap(
+                run_mafft,
+                zip(
+                    qry_seqs,
+                    repeat(ref_seq),
+                    repeat(quiet),
+                    repeat(indel_method),
+                    repeat(ref_start),
+                    repeat(ref_end),
+                ),
+            )
+        for name, aln_seq in zip(qry_names, results):
+            print(f">{name}", aln_seq, sep="\n", file=f_out)
 
     pyfastaq.utils.close(f_out)

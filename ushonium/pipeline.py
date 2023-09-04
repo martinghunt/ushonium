@@ -126,11 +126,9 @@ class Pipeline:
             if self.cpus == 1:
                 for sample_name, sample_fa in samples[i : i + self.cpus]:
                     logging.info(f"Running MSA on sample {sample_name}")
-                    name, aln_seq = mafft.run_mafft_one_seq(
-                        sample_name,
+                    aln_seq = mafft.run_mafft_one_qry_fasta(
                         sample_fa,
-                        self.ref_fa,
-                        self.ref_name,
+                        self.ref_seq,
                         False,
                         self.indel_method,
                         self.ref_start,
@@ -146,19 +144,18 @@ class Pipeline:
                 )
                 with multiprocessing.Pool(processes=self.cpus) as p:
                     results = p.starmap(
-                        mafft.run_mafft_one_seq,
+                        mafft.run_mafft_one_qry_fasta,
                         zip(
-                            names,
                             fastas,
-                            repeat(self.ref_fa),
-                            repeat(self.ref_name),
+                            repeat(self.ref_seq),
                             repeat(True),
                             repeat(self.indel_method),
                             repeat(self.ref_start),
                             repeat(self.ref_end),
                         ),
                     )
-                aln_seqs = {x[0]: x[1] for x in results}
+                aln_seqs = dict(zip(names, results))
+                # aln_seqs = {x[0]: x[1] for x in results}
 
             for name in names:
                 print(f">{name}", aln_seqs[name], sep="\n", file=f_out_msa)
@@ -210,11 +207,11 @@ class Pipeline:
             os.mkdir(msa_fasta_dir)
             with multiprocessing.Pool(processes=self.cpus) as p:
                 p.starmap(
-                    mafft.run_mafft_multi_fasta_chunked,
+                    mafft.run_mafft_multi_qry_fasta,
                     zip(
                         fasta_input_files,
-                        repeat(self.ref_fa),
                         repeat(self.ref_name),
+                        repeat(self.ref_seq),
                         msa_fastas,
                         repeat(quiet),
                         repeat(self.indel_method),
