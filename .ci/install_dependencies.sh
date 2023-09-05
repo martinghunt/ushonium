@@ -30,6 +30,9 @@ cd $install_root
 wget https://mafft.cbrc.jp/alignment/software/mafft-7.520-linux.tgz
 tar xf mafft-7.520-linux.tgz
 mv mafft-linux64/mafft.bat mafft-linux64/mafft
+# permissions don't have "o" set, need to fix otherwise get Permission denied
+# error when trying to run
+chmod -R o+rX mafft-linux64
 rm mafft-7.520-linux.tgz
 
 
