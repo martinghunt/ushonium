@@ -2,6 +2,7 @@ from itertools import repeat
 import logging
 import multiprocessing
 import os
+import shutil
 
 import pyfastaq
 
@@ -241,9 +242,11 @@ class Pipeline:
             with open(vcfs_done, "w") as f:
                 pass
 
-        # ------------------ iteratively make tree (unoptimized) --------------
+        # ------------------ iteratively make tree ----------------------------
         tree_file = None
         tree_iter_dir = "03.tree_iters"
+        unopt_tree = "tree.unoptimized.pb"
+
         if not os.path.exists(tree_iter_dir):
             os.mkdir(tree_iter_dir)
 
@@ -262,15 +265,22 @@ class Pipeline:
                     with open(tree_file, "w") as f:
                         print("()", file=f)
                     utils.syscall(
-                        f"usher-sampled --sort-before-placement-3 --vcf {vcf_file} --tree {tree_file} -T {self.cpus} --save-mutation-annotated-tree tree.pb &> usher.stdouterr",
+                        f"usher-sampled --sort-before-placement-3 --vcf {vcf_file} --tree {tree_file} -T {self.cpus} --save-mutation-annotated-tree {unopt_tree} &> usher.stdouterr",
                         cwd=iter_outdir,
                     )
                 else:
                     assert tree_file is not None
                     utils.syscall(
-                        f"usher-sampled --sort-before-placement-3 --vcf {vcf_file} --load-mutation-annotated-tree {tree_file} -T {self.cpus} --save-mutation-annotated-tree tree.pb &> usher.stdouterr",
+                        f"usher-sampled --sort-before-placement-3 --vcf {vcf_file} --load-mutation-annotated-tree {tree_file} -T {self.cpus} --save-mutation-annotated-tree {unopt_tree}",
                         cwd=iter_outdir,
+                        log=f"{iter_outdir}/usher.stdouterr",
                     )
+
+                utils.syscall(
+                    f"matOptimize {self.matopt_opts} -T {self.cpus} -i {unopt_tree} -o tree.pb",
+                    cwd=iter_outdir,
+                    log=f"{iter_outdir}/tree.optimize.log",
+                )
 
                 with open(done_file, "w") as f:
                     pass
@@ -284,7 +294,9 @@ class Pipeline:
             assert os.path.exists(tree_file)
 
         # -------------- optimize tree and make taxonium file -----------------
-        self.run_matOptimize(tree_file)
+        # copy optimized tree from final iteration (don't symlink because
+        # might want to delete all the iteration directories)
+        shutil.copyfile(tree_file, self.tree_optimized)
         self.run_usher_to_taxonium()
 
     def run(self):
