@@ -30,6 +30,10 @@ class Pipeline:
         self.indel_method = options.indel_method
         self._set_ref_start_end(options.ref_start_end)
         self.multi_fa_mafft_chunk_size = 50
+        self.start_tree = options.start_tree
+        if self.start_tree is not None:
+            self.start_tree = os.path.abspath(self.start_tree)
+            assert os.path.exists(self.start_tree)
 
         self.ref_fa = "00.ref.fa"
         self.ref_name = None
@@ -169,12 +173,13 @@ class Pipeline:
         utils.syscall(f"faToVcf -includeNoAltN {msa_fa} {vcf}")
 
         logging.info("Running usher")
-        empty_tree = "03.tmp.empty_tree"
-        with open(empty_tree, "w") as f:
-            print("()", file=f)
+        if self.start_tree is None:
+            self.start_tree = "03.tmp.empty_tree"
+            with open(self.start_tree, "w") as f:
+                print("()", file=f)
         tree_unoptimized = "03.usher.pb"
         utils.syscall(
-            f"usher-sampled --sort-before-placement-3 --vcf {vcf} --tree {empty_tree} -T {self.cpus} --save-mutation-annotated-tree {tree_unoptimized}",
+            f"usher-sampled --sort-before-placement-3 --vcf {vcf} --tree {self.start_tree} -T {self.cpus} --save-mutation-annotated-tree {tree_unoptimized}",
             log=f"{tree_unoptimized}.log",
         )
 
@@ -261,9 +266,12 @@ class Pipeline:
                 if i == 0:
                     logging.info(f"Tree iteration {i} start")
                     assert tree_file is None
-                    tree_file = os.path.abspath(os.path.join(iter_outdir, "empty_tree"))
-                    with open(tree_file, "w") as f:
-                        print("()", file=f)
+                    if self.start_tree is None:
+                        tree_file = os.path.abspath(os.path.join(iter_outdir, "empty_tree"))
+                        with open(tree_file, "w") as f:
+                            print("()", file=f)
+                    else:
+                        tree_file = self.start_tree
                     utils.syscall(
                         f"usher-sampled --sort-before-placement-3 --vcf {vcf_file} --tree {tree_file} -T {self.cpus} --save-mutation-annotated-tree {unopt_tree} &> usher.stdouterr",
                         cwd=iter_outdir,

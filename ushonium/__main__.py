@@ -63,6 +63,11 @@ def main(args=None):
         help="Start and end coord of the ref to use, eg --ref_start_end 100,28000 would trim all MSAs to reference coords 100-28000 inclusive (1-based coords)",
         metavar="INT,INT",
     )
+    parser.add_argument(
+        "--start_tree",
+        help="Starting tree in .pb format. Default is to use an empty tree",
+        metavar="FILENAME",
+    )
     input_group = parser.add_mutually_exclusive_group(required=True)
     input_group.add_argument(
         "--samples_tsv",
