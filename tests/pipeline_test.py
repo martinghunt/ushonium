@@ -34,6 +34,7 @@ def test_pipeline_from_samples_tsv():
     utils.syscall(f"rm -rf {options.outdir}")
     options.samples_tsv = "tmp.test_pipeline.samples.tsv"
     options.ref_start_end = None
+    options.start_tree = None
     with open(options.samples_tsv, "w") as f:
         for i in range(1, 4):
             print(
@@ -75,6 +76,7 @@ def test_pipeline_from_fastas_fofn():
     utils.syscall(f"rm -rf {options.outdir}")
     options.samples_tsv = None
     options.ref_start_end = None
+    options.start_tree = None
     with open(options.fastas_fofn, "w") as f:
         print(os.path.join(data_dir, "samples.1-2.fa.gz"), file=f)
         print(os.path.join(data_dir, "sample3.fa"), file=f)
