@@ -177,9 +177,12 @@ class Pipeline:
             self.start_tree = "03.tmp.empty_tree"
             with open(self.start_tree, "w") as f:
                 print("()", file=f)
+            tree_opt = "--tree"
+        else:
+            tree_opt = "--load-mutation-annotated-tree"
         tree_unoptimized = "03.usher.pb"
         utils.syscall(
-            f"usher-sampled --sort-before-placement-3 --vcf {vcf} --tree {self.start_tree} -T {self.cpus} --save-mutation-annotated-tree {tree_unoptimized}",
+            f"usher-sampled --sort-before-placement-3 --vcf {vcf} {tree_opt} {self.start_tree} -T {self.cpus} --save-mutation-annotated-tree {tree_unoptimized}",
             log=f"{tree_unoptimized}.log",
         )
 
@@ -270,11 +273,15 @@ class Pipeline:
                         tree_file = os.path.abspath(os.path.join(iter_outdir, "empty_tree"))
                         with open(tree_file, "w") as f:
                             print("()", file=f)
+                        tree_opt = "--tree"
                     else:
                         tree_file = self.start_tree
+                        tree_opt = "--load-mutation-annotated-tree"
+
                     utils.syscall(
-                        f"usher-sampled --sort-before-placement-3 --vcf {vcf_file} --tree {tree_file} -T {self.cpus} --save-mutation-annotated-tree {unopt_tree} &> usher.stdouterr",
+                        f"usher-sampled --sort-before-placement-3 --vcf {vcf_file} {tree_opt} {tree_file} -T {self.cpus} --save-mutation-annotated-tree {unopt_tree}",
                         cwd=iter_outdir,
+                        log=f"{iter_outdir}/usher.stdouterr",
                     )
                 else:
                     assert tree_file is not None
